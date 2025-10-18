@@ -17,9 +17,9 @@ cot = { version = "0.4.0", features = ["full"] }
 
 realfft = "3.5.0"
 num-complex = "0.4"
-ffmpeg-next = "7"  
+rust_ffmpeg = "*"  
 anyhow = "1" 
 serde = "*"
 serde_json = "*"
-yt-dlp = {path="/home/roni/Pictures/yt-dlp-1.2.4"}
 tokio='*'
+symphonia = { version = "0.5", features = ["all"] }

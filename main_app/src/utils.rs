@@ -4,6 +4,7 @@
     unused_variables,
 )]
 use std::sync::Arc;
+use std::any::type_name;
 
 use cot::db::Database;
 
@@ -14,72 +15,243 @@ pub fn create_and_store_finger_print(
 ){
 
 }
+fn print_type_of<T>(obj: &T){
+    println!("{}", type_name::<T>());
+}
 
-use ffmpeg_next as ffmpeg;
-use anyhow::Result;
+use symphonia::core::audio::{AudioBufferRef, Signal};
+use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::errors::Error;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
+use std::fs::File;
+use std::path::Path;
 
-pub fn load_audio_samples(path: &str) -> Result<Vec<f32>> {
-    // Initialize FFmpeg
-    ffmpeg::init()?;
+pub fn fetch_audio_data<P: AsRef<Path>>(path: P) -> Result<Vec<f32>, Error> {
+    // Open the media source
+    let file = File::open(path.as_ref())?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-    // Open input file
-    let mut ictx = ffmpeg::format::input(&path)?;
-
-    // Find the best audio stream
-    let input_stream = ictx
-        .streams()
-        .best(ffmpeg::media::Type::Audio)
-        .ok_or_else(|| anyhow::anyhow!("No audio stream found"))?;
-    let stream_index = input_stream.index();
-
-    // Get codec context
-    let codec_params = input_stream.parameters();
-    let decoder = ffmpeg::codec::context::Context::from_parameters(codec_params)?;
-    let mut decoder = decoder.decoder().audio()?;
-
-    // Set up resampler to convert to mono f32
-    let mut resampler = ffmpeg::software::resampling::Context::get(
-        decoder.format(),
-        decoder.channel_layout(),
-        decoder.rate(),
-        ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar),
-        ffmpeg::channel_layout::MONO,
-        decoder.rate(),
-    )?;
-
-    let mut output_samples: Vec<f32> = Vec::new();
-    let mut decoded = ffmpeg::frame::Audio::empty();
-
-    for (stream, packet) in ictx.packets() {
-        if stream.index() == stream_index {
-            decoder.send_packet(&packet)?;
-            while decoder.receive_frame(&mut decoded).is_ok() {
-                let mut resampled = ffmpeg::frame::Audio::empty();
-                resampler.run(&decoded, &mut resampled)?;
-
-                // Collect samples as f32
-                let planes = resampled.data(0);
-                let len = resampled.samples();
-                let slice = unsafe {
-                    std::slice::from_raw_parts(planes.as_ptr() as *const f32, len)
-                };
-                output_samples.extend_from_slice(slice);
-            }
+    // Create a probe hint using the file extension
+    let mut hint = Hint::new();
+    if let Some(extension) = path.as_ref().extension() {
+        if let Some(ext_str) = extension.to_str() {
+            hint.with_extension(ext_str);
         }
     }
 
-    // flush decoder
-    decoder.send_eof()?;
-    while decoder.receive_frame(&mut decoded).is_ok() {
-        let mut resampled = ffmpeg::frame::Audio::empty();
-        resampler.run(&decoded, &mut resampled)?;
-        let planes = resampled.data(0);
-        let len = resampled.samples();
-        let slice = unsafe {
-            std::slice::from_raw_parts(planes.as_ptr() as *const f32, len)
+    // Probe the media source
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())?;
+
+    let mut format = probed.format;
+
+    // Find the default audio track
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or(Error::Unsupported("No supported audio tracks found"))?;
+
+    let track_id = track.id;
+    let num_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
+
+    // Create a decoder for the track
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &DecoderOptions::default())?;
+
+    // Decode all packets and collect samples
+    let mut samples = Vec::new();
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(Error::IoError(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         };
-        output_samples.extend_from_slice(slice);
+
+        // Skip packets that don't belong to our track
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        // Decode the packet
+        let decoded = decoder.decode(&packet)?;
+
+        // Convert to f32 and mix to mono if needed
+        convert_to_mono(&decoded, num_channels, &mut samples);
     }
 
-    Ok(output_samples)
+    Ok(samples)
+}
+
+fn convert_to_mono(audio_buf: &AudioBufferRef, num_channels: usize, output: &mut Vec<f32>) {
+    match audio_buf {
+        AudioBufferRef::F32(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                // Mono audio - just copy
+                output.extend_from_slice(planes.planes()[0]);
+            } else {
+                // Multi-channel - average all channels
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i];
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::F64(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| s as f32));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i];
+                    }
+                    output.push((sum / num_channels as f64) as f32);
+                }
+            }
+        }
+        AudioBufferRef::S32(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| s as f32 / i32::MAX as f32));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i] as f32 / i32::MAX as f32;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::S24(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+            const S24_MAX: f32 = 8388607.0; // 2^23 - 1
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| s.into_i32() as f32 / S24_MAX));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i].into_i32() as f32 / S24_MAX;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::S16(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| s as f32 / i16::MAX as f32));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i] as f32 / i16::MAX as f32;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::S8(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| s as f32 / i8::MAX as f32));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += channel[i] as f32 / i8::MAX as f32;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::U32(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| (s as f32 / u32::MAX as f32) * 2.0 - 1.0));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += (channel[i] as f32 / u32::MAX as f32) * 2.0 - 1.0;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::U24(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+            const U24_MAX: f32 = 16777215.0; // 2^24 - 1
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| (s.into_u32() as f32 / U24_MAX) * 2.0 - 1.0));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += (channel[i].into_u32() as f32 / U24_MAX) * 2.0 - 1.0;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::U16(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| (s as f32 / u16::MAX as f32) * 2.0 - 1.0));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += (channel[i] as f32 / u16::MAX as f32) * 2.0 - 1.0;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+        AudioBufferRef::U8(buf) => {
+            let planes = buf.planes();
+            let num_frames = buf.frames();
+
+            if num_channels == 1 {
+                output.extend(planes.planes()[0].iter().map(|&s| (s as f32 / u8::MAX as f32) * 2.0 - 1.0));
+            } else {
+                for i in 0..num_frames {
+                    let mut sum = 0.0;
+                    for channel in planes.planes() {
+                        sum += (channel[i] as f32 / u8::MAX as f32) * 2.0 - 1.0;
+                    }
+                    output.push(sum / num_channels as f32);
+                }
+            }
+        }
+    }
 }

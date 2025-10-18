@@ -2,8 +2,9 @@
 RUST_BACKTRACE = "0"
 
 [alias]
-run_dev = """
-    watch
-    -w src/ -w Cargo.toml
-    -x "run"
-"""
+run_dev = [
+    "watch",
+    "-w", "src/",
+    "-w", "Cargo.toml",
+    "-x", "run -- -l 8888"
+]

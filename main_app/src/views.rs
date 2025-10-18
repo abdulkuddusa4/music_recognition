@@ -24,11 +24,9 @@ use serde_json::{
 };
 
 use crate::models::Song;
-// use crate::utils::download_youtube_audio;
+use crate::utils::fetch_audio_data;
 
-fn print_type_of<T>(obj: &T){
-    println!("{}", type_name::<T>());
-}
+
 
 
 pub async fn test_view(
@@ -36,7 +34,7 @@ pub async fn test_view(
     RequestDb(db): RequestDb
 )->Json<Value>
 {
-
-    print_type_of(&db);
+    let out = fetch_audio_data("/home/roni/Downloads/videoplayback.mp3");
+    // println!("{:?}", out);
     return Json(json!({"name": "downloaded"}));
 }
