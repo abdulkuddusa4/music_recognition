@@ -1,0 +1,9 @@
+[env]
+RUST_BACKTRACE = "0"
+
+[alias]
+run_dev = """
+    watch
+    -w src/ -w Cargo.toml
+    -x "run"
+"""
