@@ -3,7 +3,7 @@ mod migrations;
 mod models;
 mod shazam;
 mod views;
-mod utils;
+// mod utils;
 
 use askama::Template;
 use cot::auth::db::DatabaseUserApp;

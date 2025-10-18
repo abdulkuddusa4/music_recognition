@@ -29,7 +29,7 @@ use symphonia::core::probe::Hint;
 use std::fs::File;
 use std::path::Path;
 
-pub fn fetch_audio_data<P: AsRef<Path>>(path: P) -> Result<Vec<f32>, Error> {
+pub fn fetch_audio_data<P: AsRef<Path>>(path: P) -> Result<(Vec<f32>, u32), Error> {
     // Open the media source
     let file = File::open(path.as_ref())?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -57,6 +57,7 @@ pub fn fetch_audio_data<P: AsRef<Path>>(path: P) -> Result<Vec<f32>, Error> {
 
     let track_id = track.id;
     let num_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
+    let sample_rate = track.codec_params.sample_rate.ok_or(Error::Unsupported("Sample rate not found"))?;
 
     // Create a decoder for the track
     let mut decoder = symphonia::default::get_codecs()
@@ -84,7 +85,7 @@ pub fn fetch_audio_data<P: AsRef<Path>>(path: P) -> Result<Vec<f32>, Error> {
         convert_to_mono(&decoded, num_channels, &mut samples);
     }
 
-    Ok(samples)
+    Ok((samples, sample_rate))
 }
 
 fn convert_to_mono(audio_buf: &AudioBufferRef, num_channels: usize, output: &mut Vec<f32>) {
