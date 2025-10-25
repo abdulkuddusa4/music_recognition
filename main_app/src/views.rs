@@ -1,42 +1,72 @@
-#![allow(dead_code, unused_variables, unused_imports)]
+use std::path::Path;
 
+use serde_json::{json, Value};
 
-use std::any::type_name;
-// use std::alloc::sync::Arc;
-use std::sync::Arc;
+use http_body_util::BodyExt;
 
-use cot::db::{
-    Model,
-    query
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+
+use cot::http::method::Method;
+use cot::form::{
+    Form,
+    FormResult
 };
-
-use cot::request::extractors::{
-    RequestDb
-};
-
-use cot::request::Request;
-use cot::db::Database;
-
+use cot::request::{Request, RequestExt};
+use cot::request::extractors::RequestDb;
+use cot::response::{Response, ResponseExt};
 use cot::json::Json;
-use serde_json::{
-    json,
-    Value
-};
-
-use crate::models::Song;
-use main_app::utils::fetch_audio_data;
+use cot::html::Html;
+use cot::Body;
 
 
 
+use askama::Template;
 
-pub async fn test_view(
-    request: Request,
-    RequestDb(db): RequestDb
-)->Json<Value>
-{
-    let out = fetch_audio_data("/home/roni/Downloads/videoplayback.mp3");
-    let (samples, sample_rate) = out.unwrap();
-    main_app::player::play_audio(samples, sample_rate);
-    // println!("{:?}", out);
-    return Json(json!({"name": "downloaded"}));
+
+
+#[derive(Template)]
+#[template(path = "upload.html")]
+struct UploadTemplate {
+    youtube_url: String,
+    errors: Vec<String>,
+    success: String
+}
+
+pub async fn test_view(mut request: Request)->Response{
+    if request.method() == Method::POST{
+        let form_result = crate::forms::MusicUploadForm::from_request(&mut request).await.unwrap();
+        match form_result{
+            FormResult::Ok(form) => {
+                let template = UploadTemplate{
+                    youtube_url:form.youtube_url,
+                    errors: vec![],
+                    success: "".to_string()
+                };
+                Response::new(
+                    Body::fixed(template.render().unwrap())
+                ) 
+            }
+            _ =>{
+                let template = UploadTemplate{
+                    youtube_url:"".to_string(),
+                    errors: vec![],
+                    success: "".to_string()
+                };
+                Response::new(
+                    Body::fixed(template.render().unwrap())
+                )               
+            }
+        }
+    }
+    else{
+        let template = UploadTemplate{
+            youtube_url:"".to_string(),
+            errors: vec![],
+            success: "".to_string()
+        };
+        Response::new(
+            Body::fixed(template.render().unwrap())
+        )
+    }
 }

@@ -6,5 +6,7 @@ run_dev = [
     "watch",
     "-w", "src/",
     "-w", "Cargo.toml",
+    "-w", "templates",
+    "-w", "static",
     "-x", "run -- -l 8888"
 ]

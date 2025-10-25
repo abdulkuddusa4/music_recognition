@@ -3,6 +3,9 @@ mod migrations;
 mod models;
 mod shazam;
 mod views;
+mod forms;
+mod download_helpers;
+
 // mod utils;
 
 use askama::Template;
@@ -88,3 +91,5 @@ impl Project for MainAppProject {
 fn main() -> impl Project {
     MainAppProject
 }
+
+

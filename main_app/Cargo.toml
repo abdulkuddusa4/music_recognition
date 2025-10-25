@@ -13,6 +13,12 @@ path="src/tests.rs"
 
 [dependencies]
 askama = "0.14"
+axum-core={version="0.5.5"}
+multer = "3.0"
+futures-util = "0.3"
+
+http-body-util = "0.1"
+axum = { version = "0.7", features = ["multipart"] }
 cot = { version = "0.4.0", features = ["full"] }
 
 realfft = "3.5.0"
