@@ -48,10 +48,16 @@ impl App for MainAppApp {
         Router::with_urls([
             Route::with_handler_and_name("", index, "index"),
             Route::with_handler_and_name(
-                "test/",
-                views::test_view,
-                "test-view"
-            )
+                "upload/",
+                views::upload_view,
+                "upload-view"
+            ),
+            Route::with_handler_and_name(
+                "search/",
+                views::search_view,
+                "search-view"
+            ),
+
         ])
     }
 

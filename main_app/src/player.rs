@@ -67,7 +67,3 @@ impl Source for AudioSource {
         ))
     }
 }
-
-fn convert_to_mono(audio_buf: &AudioBufferRef, num_channels: usize, output: &mut Vec<f32>) {
-    // ... (use the convert_to_mono function from before)
-}

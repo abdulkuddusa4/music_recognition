@@ -48,21 +48,21 @@ struct FingerPrint  {
     #[model(primary_key)]
     id: Auto<i64>,
     address: u32,
-    AnchorTimeMs: u32,
-    SongID:       i64
+    anchor_time_ms: u32,
+    song_id:       i64
 }
 
 impl FingerPrint{
     pub fn new(
         address: u32,
-        AnchorTimeMs: u32,
-        SongID: i64
+        anchor_time_ms: u32,
+        song_id: i64
     )->FingerPrint{
         FingerPrint{
             id:Auto::default(),
             address,
-            AnchorTimeMs,
-            SongID
+            anchor_time_ms,
+            song_id
         }
     }
 }

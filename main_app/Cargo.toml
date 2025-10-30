@@ -12,6 +12,8 @@ path="src/tests.rs"
 
 
 [dependencies]
+num-traits = "*"
+
 askama = "0.14"
 axum-core={version="0.5.5"}
 multer = "3.0"

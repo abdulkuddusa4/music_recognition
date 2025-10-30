@@ -1,7 +1,7 @@
 #![allow(dead_code,unused_variables,unused_imports)]
 
-mod spectogram;
-mod fingerprint;
+pub mod spectogram;
+pub mod fingerprint;
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

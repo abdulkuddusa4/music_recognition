@@ -143,7 +143,6 @@ pub struct Peak {
     pub freq: Complex<f64>,
 }
 
-/// Analyzes a spectrogram and extracts significant peaks in the frequency domain over time.
 pub fn extract_peaks(spectrogram: &Vec<Vec<Complex<f64>>>, audio_duration: f64) -> Vec<Peak> {
     if spectrogram.is_empty() {
         return Vec::new();

@@ -1,0 +1,940 @@
+<!-- templates/search_page.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Search - Rust Music Recognition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fef3e7 0%, #fde5d4 50%, #fcd7c1 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            background: linear-gradient(145deg, #ffffff 0%, #fff8f3 100%);
+            border-radius: 25px;
+            box-shadow: 
+                0 20px 60px rgba(206, 106, 58, 0.15),
+                0 0 0 1px rgba(206, 106, 58, 0.1);
+            padding: 40px;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .rust-logo {
+            margin-bottom: 20px;
+        }
+
+        .rust-logo img {
+            width: 80px;
+            height: 80px;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 5px 15px rgba(206, 106, 58, 0.2));
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        h1 {
+            color: #ce6a3a;
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(206, 106, 58, 0.15);
+        }
+
+        .subtitle {
+            color: #8b6144;
+            font-size: 0.95em;
+        }
+
+        .top-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+
+        .top-btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(206, 106, 58, 0.25);
+            text-decoration: none;
+        }
+
+        .top-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(206, 106, 58, 0.35);
+            background: linear-gradient(135deg, #d97540 0%, #e58448 100%);
+        }
+
+        .recording-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .record-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            border: none;
+            color: white;
+            font-size: 3em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 30px rgba(206, 106, 58, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .record-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(206, 106, 58, 0.4);
+        }
+
+        .record-button.recording {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.08);
+            }
+        }
+
+        .record-button.recording::after {
+            content: '';
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 107, 107, 0.3);
+            animation: ripple 1.5s ease-out infinite;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.3);
+                opacity: 0;
+            }
+        }
+
+        .recording-status {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #8b6144;
+            font-weight: 600;
+            min-height: 30px;
+        }
+
+        .recording-status.active {
+            color: #ff6b6b;
+        }
+
+        .audio-visualizer {
+            margin: 20px auto;
+            width: 100%;
+            max-width: 500px;
+            height: 80px;
+            background: linear-gradient(135deg, #fff8f3 0%, #fef3e7 100%);
+            border-radius: 12px;
+            border: 1px solid #f0d6c4;
+            display: none;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .audio-visualizer.active {
+            display: block;
+        }
+
+        .audio-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            height: 100%;
+            gap: 3px;
+            padding: 10px;
+        }
+
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #ce6a3a 0%, #d97540 100%);
+            border-radius: 3px 3px 0 0;
+            transition: height 0.1s ease;
+        }
+
+        .submit-button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 20px rgba(206, 106, 58, 0.3);
+            margin-top: 20px;
+        }
+
+        .submit-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 30px rgba(206, 106, 58, 0.4);
+            background: linear-gradient(135deg, #d97540 0%, #e58448 100%);
+        }
+
+        .submit-button:disabled {
+            background: linear-gradient(135deg, #d4c4ba 0%, #c4b5ab 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-player-container {
+            background: linear-gradient(145deg, #ffffff 0%, #fff8f3 100%);
+            border-radius: 25px;
+            box-shadow: 
+                0 20px 60px rgba(206, 106, 58, 0.15),
+                0 0 0 1px rgba(206, 106, 58, 0.1);
+            padding: 40px;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s ease-in 0.2s both;
+            display: none;
+        }
+
+        .video-player-container.active {
+            display: block;
+        }
+
+        .video-player-header {
+            color: #ce6a3a;
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .player-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .watch-youtube-btn {
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .watch-youtube-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(206, 106, 58, 0.3);
+        }
+
+        .close-player-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .close-player-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+        }
+
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(206, 106, 58, 0.2);
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 15px;
+        }
+
+        .embed-error {
+            background: linear-gradient(135deg, #fff8f3 0%, #fef3e7 100%);
+            border: 2px solid #f0d6c4;
+            border-radius: 15px;
+            padding: 60px 40px;
+            text-align: center;
+            color: #8b6144;
+        }
+
+        .embed-error-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .embed-error-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #ce6a3a;
+            margin-bottom: 10px;
+        }
+
+        .embed-error-message {
+            font-size: 1em;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .embed-error-btn {
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .embed-error-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(206, 106, 58, 0.3);
+        }
+
+        .results-container {
+            background: linear-gradient(145deg, #ffffff 0%, #fff8f3 100%);
+            border-radius: 25px;
+            box-shadow: 
+                0 20px 60px rgba(206, 106, 58, 0.15),
+                0 0 0 1px rgba(206, 106, 58, 0.1);
+            padding: 40px;
+            animation: fadeIn 0.5s ease-in 0.4s both;
+        }
+
+        .results-header {
+            color: #ce6a3a;
+            font-size: 1.8em;
+            font-weight: 700;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .result-item {
+            background: linear-gradient(135deg, #fff8f3 0%, #fef3e7 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #f0d6c4;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(206, 106, 58, 0.08);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .result-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(206, 106, 58, 0.2);
+            border-color: #ce6a3a;
+        }
+
+        .result-title {
+            color: #5a4436;
+            font-size: 1.1em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .play-icon {
+            font-size: 1.2em;
+            color: #ce6a3a;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .result-btn {
+            background: linear-gradient(135deg, #ce6a3a 0%, #d97540 100%);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .result-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(206, 106, 58, 0.3);
+        }
+
+        .no-results {
+            text-align: center;
+            color: #8b6144;
+            font-size: 1.1em;
+            padding: 40px 20px;
+        }
+
+        .error-message {
+            background: #fff5f5;
+            color: #c92a2a;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff6b6b;
+            border: 1px solid #ffe0e0;
+            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.1);
+        }
+
+        .success-message {
+            background: #f8fff9;
+            color: #2b8a3e;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #51cf66;
+            border: 1px solid #d3f9d8;
+            box-shadow: 0 2px 8px rgba(81, 207, 102, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .search-box, .results-container, .video-player-container {
+                padding: 25px 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .top-buttons {
+                flex-direction: column;
+            }
+
+            .video-player-header {
+                flex-direction: column;
+            }
+
+            .result-item {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .result-actions {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="search-box">
+            <div class="header">
+                <div class="rust-logo">
+                    <img src="https://www.rust-lang.org/static/images/rust-logo-blk.svg" alt="Rust Logo">
+                </div>
+                <h1>Audio Search</h1>
+                <p class="subtitle">Record audio to find matching YouTube videos</p>
+            </div>
+
+            <div class="top-buttons">
+                <a href="/upload/" class="top-btn">
+                    <span>📤</span>
+                    Upload
+                </a>
+                <a href="/search/" class="top-btn" style="background: linear-gradient(135deg, #8b6144 0%, #a07050 100%);">
+                    <span>🔍</span>
+                    Search
+                </a>
+            </div>
+
+            {% if !error.is_empty() %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if !success.is_empty() %}
+            <div class="success-message">
+                {{ success }}
+            </div>
+            {% endif %}
+
+            <form id="searchForm" method="POST" action="/search/" enctype="multipart/form-data">
+                <div class="recording-section">
+                    <button type="button" class="record-button" id="recordBtn">
+                        🎤
+                    </button>
+                    <div class="recording-status" id="recordingStatus">
+                        Click to start recording
+                    </div>
+                    
+                    <div class="audio-visualizer" id="visualizer">
+                        <div class="audio-bars" id="audioBars"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="sampleRate" name="sample_rate" />
+                <input type="file" name="binaryData" id="fileInput" style="display:none;">
+
+
+                <button type="submit" class="submit-button" id="submitBtn" disabled>
+                    Search for matches
+                </button>
+            </form>
+        </div>
+
+        <!-- YouTube Video Player -->
+        <div class="video-player-container" id="videoPlayerContainer">
+            <div class="video-player-header">
+                <span id="videoTitle">🎬 Now Playing</span>
+                <div class="player-actions">
+                    <a href="#" target="_blank" class="watch-youtube-btn" id="watchYoutubeBtn">
+                        <span>🔗</span>
+                        <span>Open in YouTube</span>
+                    </a>
+                    <button class="close-player-btn" id="closePlayerBtn">✕ Close</button>
+                </div>
+            </div>
+            <div class="video-wrapper">
+                <iframe id="youtubePlayer" 
+                        src="" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                </iframe>
+                <div class="embed-error" id="embedError" style="display: none;">
+                    <div class="embed-error-icon">🎥</div>
+                    <div class="embed-error-title">Video Cannot Be Embedded</div>
+                    <div class="embed-error-message">
+                        This video cannot be played here due to embedding restrictions.<br>
+                        Please click the button below to watch it on YouTube.
+                    </div>
+                    <a href="#" target="_blank" class="embed-error-btn" id="embedErrorBtn">
+                        Watch on YouTube →
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-container">
+            <h2 class="results-header">🎵 Search Results</h2>
+            
+            {% if results.len() > 0 %}
+                {% for result in results %}
+                <div class="result-item">
+                    <div class="result-title" data-video-url="{{ result }}">
+                        <span class="play-icon">▶️</span>
+                        <span>{{ result }}</span>
+                    </div>
+                    <div class="result-actions">
+                        <button class="result-btn play-btn" data-video-url="{{ result }}">
+                            Play Here
+                        </button>
+                        <a href="{{ result }}" target="_blank" class="result-btn">
+                            Open in YouTube
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-results">
+                    No results yet. Record audio to search for matching videos.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioContext;
+        let analyser;
+        let dataArray;
+        let animationId;
+        let stream;
+        let recordedAudioData = null;
+        let recordedSampleRate = null;
+        let currentVideoUrl = '';
+
+        const recordBtn = document.getElementById('recordBtn');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const visualizer = document.getElementById('visualizer');
+        const audioBars = document.getElementById('audioBars');
+        const submitBtn = document.getElementById('submitBtn');
+        const searchForm = document.getElementById('searchForm');
+        const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+        const youtubePlayer = document.getElementById('youtubePlayer');
+        const videoTitle = document.getElementById('videoTitle');
+        const closePlayerBtn = document.getElementById('closePlayerBtn');
+        const watchYoutubeBtn = document.getElementById('watchYoutubeBtn');
+        const embedError = document.getElementById('embedError');
+        const embedErrorBtn = document.getElementById('embedErrorBtn');
+
+        // Create audio visualizer bars
+        for (let i = 0; i < 32; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            bar.style.height = '10%';
+            audioBars.appendChild(bar);
+        }
+
+        // YouTube video player functionality
+        function extractVideoId(url) {
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\?\/]+)/,
+                /watch\?v=([^&]+)/
+            ];
+            
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[1]) {
+                    return match[1];
+                }
+            }
+            return null;
+        }
+
+        function playVideo(videoUrl) {
+            const videoId = extractVideoId(videoUrl);
+            
+            if (videoId) {
+                currentVideoUrl = videoUrl;
+                
+                // Update "Open in YouTube" buttons
+                watchYoutubeBtn.href = videoUrl;
+                embedErrorBtn.href = videoUrl;
+                
+                // Try to embed the video
+                const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
+                youtubePlayer.src = embedUrl;
+                youtubePlayer.style.display = 'block';
+                embedError.style.display = 'none';
+                
+                videoPlayerContainer.classList.add('active');
+                
+                // Scroll to player
+                videoPlayerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                videoTitle.textContent = `🎬 Now Playing: ${videoId}`;
+                
+                // Check if video loads (simple timeout-based check)
+                setTimeout(() => {
+                    // If iframe hasn't loaded content, show error fallback
+                    // Note: This is a simplified check. In production, you might use YouTube API
+                }, 3000);
+            } else {
+                alert('Invalid YouTube URL');
+            }
+        }
+
+        function closePlayer() {
+            youtubePlayer.src = '';
+            currentVideoUrl = '';
+            videoPlayerContainer.classList.remove('active');
+            embedError.style.display = 'none';
+            youtubePlayer.style.display = 'block';
+        }
+
+        // Handle iframe errors (when video can't be embedded)
+        youtubePlayer.addEventListener('error', function() {
+            youtubePlayer.style.display = 'none';
+            embedError.style.display = 'block';
+        });
+
+        // Add click handlers to result items (both title and button)
+        document.querySelectorAll('.result-title').forEach(item => {
+            item.addEventListener('click', function() {
+                const videoUrl = this.getAttribute('data-video-url');
+                playVideo(videoUrl);
+            });
+        });
+
+        document.querySelectorAll('.play-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const videoUrl = this.getAttribute('data-video-url');
+                playVideo(videoUrl);
+            });
+        });
+
+        closePlayerBtn.addEventListener('click', closePlayer);
+
+        // Recording functionality
+        recordBtn.addEventListener('click', toggleRecording);
+
+        async function toggleRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+
+
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Setup audio context for visualization
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+                
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+
+                // Setup media recorder
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    console.log("DATA AV");
+                    console.log(event.data);
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+
+                    window.my_chunks = audioChunks;
+                    const audioBlob = new Blob(audioChunks, { type: 'application/octet-stream' });
+                    window.myobj=audioBlob;
+                    console.log(audioBlob)
+                            // 1️⃣ Create some bytes (example: ASCII "Hello")
+                    // const bytes = new Uint8Array([5,2,12,23,35,45,234]);
+
+                    // 2️⃣ Make a Blob (binary large object) and wrap it as a File
+                    // console.log("AUDIO CHUNCKS");
+                    // console.log(audioChunks);
+                    // const file = new File([audioBlob], "data.bin", { type: "application/octet-stream" });
+
+                    // // 3️⃣ Attach the File to the <input type="file">
+                    // const dataTransfer = new DataTransfer();
+                    // dataTransfer.items.add(file);
+                    // document.getElementById("fileInput").files = dataTransfer.files;
+                    await processAudioData(audioBlob);
+                };
+
+                mediaRecorder.start();
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '⏹️';
+                recordingStatus.textContent = 'Recording... Click to stop';
+                recordingStatus.classList.add('active');
+                visualizer.classList.add('active');
+                
+                visualize();
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                recordingStatus.textContent = 'Error: Unable to access microphone';
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+
+            // // 1️⃣ Create some bytes (example: ASCII "Hello")
+            // const bytes = new Uint8Array([5,2,12,23,35,45,234]);
+
+            // // 2️⃣ Make a Blob (binary large object) and wrap it as a File
+            // const blob = new Blob([bytes], { type: "application/octet-stream" });
+            // const file = new File([blob], "data.bin", { type: "application/octet-stream" });
+
+            // // 3️⃣ Attach the File to the <input type="file">
+            // const dataTransfer = new DataTransfer();
+            // dataTransfer.items.add(file);
+            // document.getElementById("fileInput").files = dataTransfer.files;
+
+                stream.getTracks().forEach(track => track.stop());
+                
+                recordBtn.classList.remove('recording');
+                recordBtn.textContent = '🎤';
+                recordingStatus.textContent = 'Processing audio...';
+                recordingStatus.classList.remove('active');
+                
+                cancelAnimationFrame(animationId);
+                visualizer.classList.remove('active');
+            }
+
+
+
+
+
+        }
+
+        function visualize() {
+            const bars = document.querySelectorAll('.bar');
+            
+            analyser.getByteFrequencyData(dataArray);
+            
+            bars.forEach((bar, index) => {
+                const value = dataArray[index];
+                const percent = (value / 255) * 100;
+                bar.style.height = Math.max(10, percent) + '%';
+            });
+            
+            animationId = requestAnimationFrame(visualize);
+        }
+
+        async function processAudioData(audioBlob) {
+            try {
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                window.xy = await audioBlob.arrayBuffer();
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // Get audio samples as f64 (Float32Array contains values between -1.0 and 1.0)
+                const samples = audioBuffer.getChannelData(0);
+                const sampleRate = audioBuffer.sampleRate;
+                
+                // Convert Float32Array to regular array of f64 for JSON serialization
+                const samplesArray = Array.from(samples);
+
+                recordedAudioData = samples;
+                recordedAudioData = samplesArray;
+                recordedSampleRate = sampleRate;
+
+                // 1️⃣ Create some bytes (example: ASCII "Hello")
+                const bytes = new Float32Array([3.2]);
+
+                // 2️⃣ Make a Blob (binary large object) and wrap it as a File
+                const blob = new Blob([samples]);
+                // const blob = new Blob([bytes]);
+                const file = new File([blob], "data.bin");
+
+                // 3️⃣ Attach the File to the <input type="file">
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                document.getElementById("fileInput").files = dataTransfer.files;
+                
+                // Store in hidden inputs as JSON
+                // document.getElementById('audioData').value = JSON.stringify(samplesArray);
+                document.getElementById('sampleRate').value = sampleRate;
+                
+                recordingStatus.textContent = `Audio recorded (${samples.length} samples at ${sampleRate}Hz)`;
+                submitBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('Error processing audio:', error);
+                recordingStatus.textContent = 'Error processing audio';
+            }
+        }
+
+        searchForm.addEventListener('submit', function(e) {
+            if (!recordedAudioData || !recordedSampleRate) {
+                e.preventDefault();
+                alert('Please record audio first');
+                return;
+            }
+            
+            submitBtn.textContent = 'Searching...';
+            submitBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>

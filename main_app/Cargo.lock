@@ -1857,6 +1857,7 @@ dependencies = [
  "http-body-util",
  "multer",
  "num-complex",
+ "num-traits",
  "realfft",
  "rodio",
  "rust_ffmpeg",
