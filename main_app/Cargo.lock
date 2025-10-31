@@ -1858,6 +1858,7 @@ dependencies = [
  "multer",
  "num-complex",
  "num-traits",
+ "rand 0.8.5",
  "realfft",
  "rodio",
  "rust_ffmpeg",

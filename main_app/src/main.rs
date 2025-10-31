@@ -1,5 +1,6 @@
 mod migrations;
 
+mod my_random;
 mod models;
 mod shazam;
 mod views;

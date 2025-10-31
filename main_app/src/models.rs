@@ -15,16 +15,14 @@ use serde::ser::{
 pub struct Song{
     #[model(primary_key)]
     id: Auto<i64>,
-    pub name: String,
-    pub meta_info: String
+    pub youtube_url: String
 }
 
 impl Song{
-    pub fn new(name:&str, meta_info:&str)->Song{
+    pub fn new(youtube_url:&str)->Song{
         Song{
             id: Auto::default(),
-            name: name.to_string(),
-            meta_info: meta_info.to_string()
+            youtube_url: youtube_url.to_string(),
         }
     }
 }
@@ -37,8 +35,7 @@ impl Serialize for Song{
     S: Serializer
     {
         let mut s = serializer.serialize_struct("Post", 3)?;
-        s.serialize_field("name", &self.name)?;
-        s.serialize_field("meta_info", &self.meta_info)?;
+        s.serialize_field("youtube_url", &self.youtube_url)?;
         s.end()
     }
 }

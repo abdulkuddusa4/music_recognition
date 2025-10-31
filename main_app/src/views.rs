@@ -16,6 +16,8 @@ use cot::form::{
 };
 use cot::request::{Request, RequestExt};
 use cot::request::extractors::RequestDb;
+use cot::db::query;
+use crate::models::Song;
 use cot::response::{Response, ResponseExt};
 use cot::json::Json;
 use cot::html::Html;
@@ -25,6 +27,8 @@ use cot::bytes::Buf;
 use askama::Template;
 
 use main_app::player::play_audio;
+use crate::my_random::random_string;
+use crate::download_helpers::download_youtube_audio;
 
 
 fn print_type_of<T>(value: &T){
@@ -44,11 +48,30 @@ union number_32{
     as_arr: [u8;4]
 }
 
-pub async fn upload_view(mut request: Request)->Response{
+pub async fn upload_view(mut request: Request, RequestDb(db): RequestDb)->Response{
     if request.method() == Method::POST{
         let form_result = crate::forms::MusicUploadForm::from_request(&mut request).await.unwrap();
         match form_result{
             FormResult::Ok(form) => {
+
+                println!("youtube url: {}", form.youtube_url);
+                let file_path = format!("output/{}.mp3", random_string(5 as usize));
+                let res = download_youtube_audio(&form.youtube_url[..], &file_path[..]).await;
+                if res != Ok(()){
+                    let template = UploadTemplate{
+                        youtube_url:form.youtube_url,
+                        errors: vec!["failed to download the video. try again later".to_string()],
+                        success: "".to_string()
+                    };
+                    return Response::new(
+                        Body::fixed(template.render().unwrap())
+                    );               
+                }
+
+
+                // let audio_data 
+                std::fs::remove_file(&file_path[..]);
+
                 let template = UploadTemplate{
                     youtube_url:form.youtube_url,
                     errors: vec![],
@@ -93,11 +116,14 @@ struct SearchTemplate {
 
 pub async fn search_view(mut request: Request)->Response{
     println!("PROCESSING");
-    if let Some((audio_sample, sample_rate)) = get_audio_data(request).await{
+    if let Some((audio_sample, sample_rate)) = get_request_audio_data(request).await{
+        let duration: f64 = audio_sample.len() as f64 / sample_rate as f64;
         let spectogram = crate::shazam::spectogram::spectrogram(
             &audio_sample.iter().map(|x| *x as f64).collect::<Vec<f64>>()[..],
             sample_rate as usize
         );
+        let peaks = crate::shazam::spectogram::extract_peaks(&spectogram.unwrap(), duration);
+
         play_audio(audio_sample, sample_rate);
     }
 
@@ -118,7 +144,7 @@ pub async fn search_view(mut request: Request)->Response{
 }
 
 
-pub async fn get_audio_data(
+pub async fn get_request_audio_data(
     request: Request,
 ) -> Option<(Vec<f32>, u32)> {
     
