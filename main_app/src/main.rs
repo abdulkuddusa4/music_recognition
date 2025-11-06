@@ -6,6 +6,7 @@ mod shazam;
 mod views;
 mod forms;
 mod download_helpers;
+mod handlers;
 
 // mod utils;
 

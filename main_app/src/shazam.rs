@@ -220,12 +220,12 @@ fn analyze_relative_timing(matches: &HashMap<u32, Vec<[u32; 2]>>) -> HashMap<u32
 }
 
 /// Generates a unique ID (placeholder - implement your own unique ID generation)
-fn generate_unique_id() -> u32 {
+fn generate_unique_id() -> i64 {
     use std::time::SystemTime;
     
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
-        .as_millis() as u32
+        .as_millis() as i64
 }
 

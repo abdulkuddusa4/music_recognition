@@ -16,19 +16,28 @@ use cot::form::{
 };
 use cot::request::{Request, RequestExt};
 use cot::request::extractors::RequestDb;
-use cot::db::query;
-use crate::models::Song;
+use cot::db::{
+    query,
+    Model
+};
 use cot::response::{Response, ResponseExt};
 use cot::json::Json;
 use cot::html::Html;
 use cot::Body;
 use cot::bytes::Buf;
 
+use num_complex::Complex;
+
 use askama::Template;
+use symphonia::core::errors::Error;
 
 use main_app::player::play_audio;
 use crate::my_random::random_string;
 use crate::download_helpers::download_youtube_audio;
+use crate::models::{
+    Song,
+    FingerPrint
+};
 
 
 fn print_type_of<T>(value: &T){
@@ -48,7 +57,7 @@ union number_32{
     as_arr: [u8;4]
 }
 
-pub async fn upload_view(mut request: Request, RequestDb(db): RequestDb)->Response{
+pub async fn upload_view(mut request: Request, RequestDb(mut db): RequestDb)->Response{
     if request.method() == Method::POST{
         let form_result = crate::forms::MusicUploadForm::from_request(&mut request).await.unwrap();
         match form_result{
@@ -69,8 +78,56 @@ pub async fn upload_view(mut request: Request, RequestDb(db): RequestDb)->Respon
                 }
 
 
-                // let audio_data 
+                let audio_data:Result<(Vec<f32>, u32), _> = main_app::utils::fetch_audio_data(&file_path);
+
+                print_type_of(&form.youtube_url);
+                let song = Song::new(&form.youtube_url);
+                let mut spectrogram_option:Option<(Vec<Vec<Complex<f64>>>, f64)> = match audio_data{
+                    Ok((audio_samples, sample_rate)) => {
+                        let audio_duration = (audio_samples.len() as f64) / sample_rate as f64;
+                        let spectogram_result = crate::shazam::spectogram::spectrogram(
+                            &audio_samples.into_iter().map(|value| value as f64).collect::<Vec<f64>>()[..],
+                            sample_rate as usize
+                        );
+                        if let Ok(spectrogram) = spectogram_result{
+                            Some((spectrogram, audio_duration))
+                        }
+                        else {
+                            None
+                        }
+                    },
+                    Err(_) => None
+                };
                 std::fs::remove_file(&file_path[..]);
+
+                if  spectrogram_option == None{                    
+                    let template = UploadTemplate{
+                        youtube_url:form.youtube_url,
+                        errors: vec![],
+                        success: "failed to save audio".to_string()
+                    };
+                    return Response::new(
+                        Body::fixed(template.render().unwrap())
+                    );
+                }
+
+
+                let (spectrogram, audio_duration) = spectrogram_option.unwrap();
+                let peaks = crate::shazam::spectogram::extract_peaks(&spectrogram, audio_duration);
+
+                let mut song = Song::new(&form.youtube_url);
+                let song_id :i64 = song.id.unwrap();
+                song.save(&db);
+                let fingerprints = crate::shazam::fingerprint::fingerprint(peaks, song_id);
+
+                for (address, couple) in fingerprints{
+                    let mut fingerprint = FingerPrint::new(
+                        address,
+                        couple.anchor_time_ms,
+                        couple.song_id
+                    );
+                    fingerprint.save(&db);
+                }
 
                 let template = UploadTemplate{
                     youtube_url:form.youtube_url,

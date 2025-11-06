@@ -10,13 +10,13 @@ const TARGET_ZONE_SIZE: usize = 5;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Couple {
     pub anchor_time_ms: u32,
-    pub song_id: u32,
+    pub song_id: i64,
 }
 
 /// Generates fingerprints from a list of peaks and stores them in a HashMap.
 /// Each fingerprint consists of an address and a couple.
 /// The address is a hash. The couple contains the anchor time and the song ID.
-pub fn fingerprint(peaks: Vec<Peak>, song_id: u32) -> HashMap<u32, Couple> {
+pub fn fingerprint(peaks: Vec<Peak>, song_id: i64) -> HashMap<u32, Couple> {
     let mut fingerprints = HashMap::new();
 
     for (i, anchor) in peaks.iter().enumerate() {

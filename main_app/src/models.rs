@@ -14,8 +14,8 @@ use serde::ser::{
 #[model]
 pub struct Song{
     #[model(primary_key)]
-    id: Auto<i64>,
-    pub youtube_url: String
+    pub id: Auto<i64>,
+    pub youtube_url: String,
 }
 
 impl Song{
@@ -41,7 +41,7 @@ impl Serialize for Song{
 }
 
 #[model]
-struct FingerPrint  {
+pub struct FingerPrint  {
     #[model(primary_key)]
     id: Auto<i64>,
     address: u32,
@@ -54,7 +54,8 @@ impl FingerPrint{
         address: u32,
         anchor_time_ms: u32,
         song_id: i64
-    )->FingerPrint{
+    )->FingerPrint
+    {
         FingerPrint{
             id:Auto::default(),
             address,
