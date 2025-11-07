@@ -22,19 +22,55 @@ use cot::router::{Route, Router};
 use cot::static_files::{StaticFile, StaticFilesMiddleware};
 use cot::session::db::SessionApp;
 use cot::{App, AppBuilder, Project, static_files};
+use cot::db::{model, Auto, LimitedString};
+use cot::request::extractors::RequestDb;
+use cot::db::Model;
+use cot::db::query;
 
+
+#[model]
+pub struct Link {
+    #[model(primary_key)]
+    id: Auto<i64>,
+    url: String,
+}
+
+impl Link{
+    fn new(url: &str)->Link{
+        Link{
+            id: Auto::default(),
+            url: url.to_string()
+        }
+    }
+}
 #[derive(Debug, Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     static_files: StaticFiles,
 }
 
-async fn index(static_files: StaticFiles) -> cot::Result<Html> {
+async fn index(static_files: StaticFiles, RequestDb(mut db): RequestDb) -> cot::Result<Html> {
     let index_template = IndexTemplate { static_files };
     let rendered = index_template.render()?;
 
+    let mut link = Link::new("abc");
+    link.save(&mut db);
+
+    let link = query!(Link, $url != String::from("sfasdf"))
+        .all(&mut db)
+        .await?;
+
+    println!("LEN S: {}", link.len());
     Ok(Html::new(rendered))
 }
+
+// async fn myview(request: Request,  RequestDb(mut db): RequestDb) -> () {
+    // let index_template = IndexTemplate { static_files };
+    // let rendered = index_template.render()?;
+
+    // Ok(Html::new(rendered))
+// }
+
 struct MainAppApp;
 
 impl App for MainAppApp {

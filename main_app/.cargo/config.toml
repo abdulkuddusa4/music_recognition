@@ -8,5 +8,6 @@ run_dev = [
     "-w", "Cargo.toml",
     "-w", "templates",
     "-w", "static",
-    "-x", "run -- -l 8888"
+    "-x", "run -- -l 8888",
+    # "-s", "cargo run -- -l 8888",
 ]

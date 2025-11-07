@@ -7,11 +7,13 @@ const TARGET_ZONE_SIZE: usize = 5;
 
 
 /// Represents a couple containing anchor time and song ID
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Couple {
-    pub anchor_time_ms: u32,
-    pub song_id: i64,
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub struct Couple {
+//     pub anchor_time_ms: u32,
+//     pub song_id: i64,
+// }
+
+use crate::shazam::Couple; //use this instead
 
 /// Generates fingerprints from a list of peaks and stores them in a HashMap.
 /// Each fingerprint consists of an address and a couple.

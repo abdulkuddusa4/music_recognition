@@ -38,6 +38,8 @@ use crate::models::{
     Song,
     FingerPrint
 };
+use crate::shazam::MatchError;
+use crate::shazam::Match;
 
 
 fn print_type_of<T>(value: &T){
@@ -60,11 +62,25 @@ union number_32{
 pub async fn upload_view(mut request: Request, RequestDb(mut db): RequestDb)->Response{
     if request.method() == Method::POST{
         let form_result = crate::forms::MusicUploadForm::from_request(&mut request).await.unwrap();
+        println!("DATABASE TYPE");
+        print_type_of(&db);
         match form_result{
             FormResult::Ok(form) => {
 
                 println!("youtube url: {}", form.youtube_url);
                 let file_path = format!("output/{}.mp3", random_string(5 as usize));
+
+                if query!(Song, $youtube_url==form.youtube_url.clone()).all(&db).await.unwrap().len()>0{
+                    let template = UploadTemplate{
+                        youtube_url:form.youtube_url,
+                        errors: vec!["The video is already uploaded.".to_string()],
+                        success: "".to_string()
+                    };
+                    return Response::new(
+                        Body::fixed(template.render().unwrap())
+                    );
+                }
+
                 let res = download_youtube_audio(&form.youtube_url[..], &file_path[..]).await;
                 if res != Ok(()){
                     let template = UploadTemplate{
@@ -77,11 +93,8 @@ pub async fn upload_view(mut request: Request, RequestDb(mut db): RequestDb)->Re
                     );               
                 }
 
-
                 let audio_data:Result<(Vec<f32>, u32), _> = main_app::utils::fetch_audio_data(&file_path);
 
-                print_type_of(&form.youtube_url);
-                let song = Song::new(&form.youtube_url);
                 let mut spectrogram_option:Option<(Vec<Vec<Complex<f64>>>, f64)> = match audio_data{
                     Ok((audio_samples, sample_rate)) => {
                         let audio_duration = (audio_samples.len() as f64) / sample_rate as f64;
@@ -116,18 +129,20 @@ pub async fn upload_view(mut request: Request, RequestDb(mut db): RequestDb)->Re
                 let peaks = crate::shazam::spectogram::extract_peaks(&spectrogram, audio_duration);
 
                 let mut song = Song::new(&form.youtube_url);
+                song.save(&db).await;
                 let song_id :i64 = song.id.unwrap();
-                song.save(&db);
                 let fingerprints = crate::shazam::fingerprint::fingerprint(peaks, song_id);
 
+                println!("SAVING FINGERPRINTS...");
                 for (address, couple) in fingerprints{
                     let mut fingerprint = FingerPrint::new(
                         address,
                         couple.anchor_time_ms,
                         couple.song_id
                     );
-                    fingerprint.save(&db);
+                    fingerprint.save(&db).await;
                 }
+                println!("DONE DB upDATE..");
 
                 let template = UploadTemplate{
                     youtube_url:form.youtube_url,
@@ -171,17 +186,57 @@ struct SearchTemplate {
 }
 
 
-pub async fn search_view(mut request: Request)->Response{
-    println!("PROCESSING");
+pub async fn search_view(
+    mut request: Request,
+    RequestDb(mut db): RequestDb
+)->Response
+{
     if let Some((audio_sample, sample_rate)) = get_request_audio_data(request).await{
         let duration: f64 = audio_sample.len() as f64 / sample_rate as f64;
         let spectogram = crate::shazam::spectogram::spectrogram(
             &audio_sample.iter().map(|x| *x as f64).collect::<Vec<f64>>()[..],
             sample_rate as usize
         );
-        let peaks = crate::shazam::spectogram::extract_peaks(&spectogram.unwrap(), duration);
 
-        play_audio(audio_sample, sample_rate);
+        let matches = crate::shazam::find_matches(
+            &db,
+            &audio_sample.iter().map(|x| *x as f64).collect::<Vec<f64>>()[..],
+            duration,
+            sample_rate as usize
+        ).await;
+
+        let search_results = Vec::<String>::new();
+
+        match matches{
+            Ok((found_songs, duration)) => {
+                print_type_of(&found_songs);
+                // println!("TUMI HAKIS FASDF SAFS: {:?}", found_songs);
+                let mut songs: Vec<String> = Vec::new();
+                for mtch in found_songs{
+                    // println!("match>>>>>");
+                    let song_match: Match = mtch;
+                    songs.push(song_match.youtube_url);
+                }
+
+                let template = SearchTemplate{
+                    error: "".to_string(),
+                    success: "".to_string(),
+                    results: songs                };
+                return Response::new(
+                    Body::fixed(template.render().unwrap())
+                );
+            },
+            _ => {
+                let template = SearchTemplate{
+                    error: "some error occured".to_string(),
+                    success: "".to_string(),
+                    results: vec!{"".to_string()}
+                };
+                return Response::new(
+                    Body::fixed(template.render().unwrap())
+                );
+            }
+        }
     }
 
 
@@ -205,8 +260,6 @@ pub async fn get_request_audio_data(
     request: Request,
 ) -> Option<(Vec<f32>, u32)> {
     
-    println!("REQUEST PROCESSING {}", request.method());
-
     if request.method() == Method::POST {
         // Get the Content-Type header and clone the boundary
         let boundary = request
@@ -227,7 +280,6 @@ pub async fn get_request_audio_data(
             }
         };
         
-        println!("Boundary: {}", boundary);
         
         // Now we can safely move request
         let (parts, body) = request.into_parts();
@@ -251,7 +303,6 @@ pub async fn get_request_audio_data(
             let field_name = field.name().unwrap_or("unknown").to_string();
             let file_name = field.file_name().map(|s| s.to_string());
 
-            println!("FORM FIELD: {}", field_name);
             if field_name == "sample_rate"{
                 sample_rate = Some(field.text().await.unwrap().parse().unwrap());
             }
@@ -278,7 +329,6 @@ pub async fn get_request_audio_data(
                         shifter+=1;
                     }
                 }
-                println!("samples: {}", audio_samples_local.len());
                 audio_samples = Some(audio_samples_local);
             }
         }

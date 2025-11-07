@@ -6,30 +6,27 @@ pub mod fingerprint;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use std::sync::Arc;
+use cot::db::Database;
+use cot::db::query;
+use cot::db::Auto;
+
+use crate::models::FingerPrint;
+use crate::models::Song;
+
 const TARGET_ZONE_SIZE: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct Match {
-    pub song_id: u32,
-    pub song_title: String,
-    pub song_artist: String,
-    pub youtube_id: String,
-    pub timestamp: u32,
+    pub song_id: i64,
+    pub youtube_url: String,
     pub score: f64,
 }
 
-#[derive(Debug, Clone)]
-pub struct Song {
-    pub id: u32,
-    pub title: String,
-    pub artist: String,
-    pub youtube_id: String,
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Couple {
     pub anchor_time_ms: u32,
-    pub song_id: u32,
+    pub song_id: i64,
 }
 
 #[derive(Debug)]
@@ -57,12 +54,46 @@ pub trait DatabaseClient {
     fn get_song_by_id(&self, song_id: u32) -> Result<Option<Song>, MatchError>;
 }
 
+async fn get_couples(
+    db: &Arc<Database>,
+    addresses: &[u32]
+)->Result<HashMap<u32, Vec<Couple>>, MatchError>
+{
+
+    let mut results = HashMap::<u32, Vec<Couple>>::new();
+    for address in addresses{
+        let addr = *address;
+        let mut cpls = Vec::<Couple>::new();
+        for cpl in query!(FingerPrint, $address == addr).all(db).await.unwrap(){
+            cpls.push(Couple{
+                anchor_time_ms: cpl.anchor_time_ms,
+                song_id: cpl.song_id
+            });
+        }
+        results.insert(*address, cpls);
+    }
+    return Ok(results);
+}
+
+async fn get_song_by_id(
+    db: &Arc<Database>,
+    song_id: i64
+)->Result<Option<Song>, MatchError>
+{
+    let mut songs = query!(Song, $id == Auto::from(song_id)).all(db).await.unwrap();
+
+    if songs.len() > 0{
+        return Ok(Some(songs.remove(0)));
+    }
+    return Ok(None);
+}
+
 /// Analyzes the audio sample to find matching songs in the database.
-pub fn find_matches<D: DatabaseClient>(
+pub async fn find_matches(
+    db_client: &Arc<Database>,
     audio_sample: &[f64],
     audio_duration: f64,
     sample_rate: usize,
-    db_client: &D,
 ) -> Result<(Vec<Match>, Duration), MatchError> {
     let start_time = Instant::now();
 
@@ -77,25 +108,25 @@ pub fn find_matches<D: DatabaseClient>(
         sample_fingerprint_map.insert(address, couple.anchor_time_ms);
     }
 
-    let (matches, _) = find_matches_fgp(&sample_fingerprint_map, db_client)?;
+    let (matches, _) = find_matches_fgp(&sample_fingerprint_map, db_client).await?;
 
     Ok((matches, start_time.elapsed()))
 }
 
 /// Uses the sample fingerprint to find matching songs in the database.
-pub fn find_matches_fgp<D: DatabaseClient>(
+pub async fn find_matches_fgp(
     sample_fingerprint: &HashMap<u32, u32>,
-    db_client: &D,
+    db_client: &Arc<Database>,
 ) -> Result<(Vec<Match>, Duration), MatchError> {
     let start_time = Instant::now();
 
     let addresses: Vec<u32> = sample_fingerprint.keys().copied().collect();
 
-    let couples_map = db_client.get_couples(&addresses)?;
+    let couples_map = get_couples(db_client, &addresses).await?;
 
-    let mut matches: HashMap<u32, Vec<[u32; 2]>> = HashMap::new();
-    let mut timestamps: HashMap<u32, u32> = HashMap::new();
-    let mut target_zones: HashMap<u32, HashMap<u32, i32>> = HashMap::new();
+    let mut matches: HashMap<i64, Vec<[u32; 2]>> = HashMap::new();
+    let mut timestamps: HashMap<i64, u32> = HashMap::new();
+    let mut target_zones: HashMap<i64, HashMap<u32, i32>> = HashMap::new();
 
     for (address, couples) in couples_map {
         for couple in couples {
@@ -135,15 +166,12 @@ pub fn find_matches_fgp<D: DatabaseClient>(
     let mut match_list = Vec::new();
 
     for (song_id, score) in scores {
-        match db_client.get_song_by_id(song_id)? {
+        match get_song_by_id(db_client, song_id).await? {
             Some(song) => {
                 let timestamp = timestamps.get(&song_id).copied().unwrap_or(0);
                 match_list.push(Match {
                     song_id,
-                    song_title: song.title,
-                    song_artist: song.artist,
-                    youtube_id: song.youtube_id,
-                    timestamp,
+                    youtube_url: song.youtube_url,
                     score,
                 });
             }
@@ -195,7 +223,7 @@ fn filter_matches(
 }
 
 
-fn analyze_relative_timing(matches: &HashMap<u32, Vec<[u32; 2]>>) -> HashMap<u32, f64> {
+fn analyze_relative_timing(matches: &HashMap<i64, Vec<[u32; 2]>>) -> HashMap<i64, f64> {
     let mut scores = HashMap::new();
 
     for (song_id, times) in matches {

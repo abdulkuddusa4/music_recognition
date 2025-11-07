@@ -11,6 +11,7 @@ use serde::ser::{
 };
 
 
+#[derive(Debug)]
 #[model]
 pub struct Song{
     #[model(primary_key)]
@@ -43,10 +44,10 @@ impl Serialize for Song{
 #[model]
 pub struct FingerPrint  {
     #[model(primary_key)]
-    id: Auto<i64>,
-    address: u32,
-    anchor_time_ms: u32,
-    song_id:       i64
+    pub id: Auto<i64>,
+    pub address: u32,
+    pub anchor_time_ms: u32,
+    pub song_id:       i64
 }
 
 impl FingerPrint{
